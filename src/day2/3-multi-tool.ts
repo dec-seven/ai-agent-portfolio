@@ -11,7 +11,9 @@ async function main() {
     tools: { calculator: calculatorTool, search: searchTool },
     stopWhen: stepCountIs(10),
     onStepFinish: (step) => {
-      console.log('Step toolCalls:', JSON.stringify(step.toolCalls, null, 2));
+      // console.log('Step toolCalls:', JSON.stringify(step.toolCalls, null, 2));
+      console.log('Tool calls:', step.toolCalls);   // LLM 想调什么
+      console.log('Tool results:', step.toolResults); // 工具返回了什么
     },
   });
 }
