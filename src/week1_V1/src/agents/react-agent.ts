@@ -1,21 +1,13 @@
 /**
- * 【手动实现ReAct循环】
- * 构建思路：
- * 1. 构建System Prompt，告诉 LLM按ReAct格式输出
- * 2. 解析LLM输出中的 Action:字段
- * 3. 执行对应工具
- * 4. 把Observation拼回messages
- * 5. 循环直到LLM输出Final Answer 或 达到最大步数
+ * 手写ReAct版
  */
 
-import { generateText } from 'ai';
-import { deepseek } from '@ai-sdk/deepseek';
-import dotenv from 'dotenv';
-import { dirname } from 'path';
-import { fileURLToPath } from 'url';
-import { createLocalLogger } from '../utils/logger.js';
-
-dotenv.config();
+import { deepseek } from "@ai-sdk/deepseek";
+import { generateText } from "ai";
+import { dirname } from "path";
+import { fileURLToPath } from "url";
+import { createLocalLogger } from "../../../utils/logger";
+import { rawTools } from "../tools";
 
 // ====== 日志工具 ======
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -30,8 +22,6 @@ const REACT_SYSTEM_PROMPT = `你是一个智能助手，当前日期是 ${new Da
   Action: 工具名称[参数]
   Observation: (工具执行结果，由系统填入)
 
-
-
   重复 Thought → Action → Observation 直到你能够给出最终答案。
   当你准备给出最终答案时，使用：
 
@@ -40,38 +30,6 @@ const REACT_SYSTEM_PROMPT = `你是一个智能助手，当前日期是 ${new Da
   可用工具：
   - calculator[数学表达式]：执行数学计算
   - search[查询关键词]：搜索互联网获取信息`;
-
-//  ====== 工具实现 ======
-function caculate(expression: string): string {
-  try {
-    const result = Function('"use strict"; return (' + expression + ')')();
-    return String(result);
-  } catch (e) {
-    return `Error: ${String(e)}`;
-  }
-}
-
-async function searchWeb(query: string): Promise<string> {
-  const apiKey = process.env.BOCHA_API_KEY
-  const res = await fetch('https://api.bocha.cn/v1/web-search', {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${apiKey}`,
-      'Content-Type': 'application/json'
-    },
-    body: JSON.stringify({
-      query,
-    })
-  })
-  const data = await res.json();
-
-  const results = (data.data.webPages.value || [])
-    .slice(0, 3)
-    .map((r: { name: string; snippet: string; url: string }) => `${r.name}: ${r.snippet}`)
-    .join('\n')
-  return results;
-}
-
 
 //  ====== 解析 LLM 实现 ======
 function parseAction(text: string): {tool:string; param: string} | null {
@@ -90,7 +48,7 @@ function isFinalAnswer(text: string): string| null {
 }
 
 //  ===== 主循环 =====
-async function reactLoop(userQuery: string, maxSteps = 10) {
+export async function reactLoop(userQuery: string, maxSteps = 10) {
   
   const messages: Array<{role:string; content:string}> = [
     { role: 'system', content: REACT_SYSTEM_PROMPT },
@@ -113,14 +71,8 @@ async function reactLoop(userQuery: string, maxSteps = 10) {
 
     // ② 有 Action → 强制执行工具，忽略 LLM 可能编造的后续内容
     if (action) {
-      let observation: string;
-      if(action.tool === 'calculator'){
-        observation = caculate(action.param);
-      } else if(action.tool === 'search'){
-        observation = await searchWeb(action.param);
-      } else {
-        observation = `Unknown tool: ${action.tool}`;
-      }
+      const toolFn = rawTools[action.tool];
+      const observation = await toolFn({query: action.param , expression: action.param });  // 直接调用纯函数
 
       log(`🔧 Tool: ${action.tool}[${action.param}]`);
       log(`📊 Observation: ${observation}`);
@@ -143,16 +95,8 @@ async function reactLoop(userQuery: string, maxSteps = 10) {
     log('⚠️ No Action or Final Answer found, stopping');
     return text;
 
-
-
   }
 
   log('⚠️ Max steps reached');
   return 'Agent 未能在最大步数内完成任务';
 }
-
-// ====== 运行 ======
-  async function main() {
-    await reactLoop('2025年全球电动车销量第一名是谁？他卖了多少辆？这个数字除以365天，日均销量多少？');
-  }
-  main();

@@ -4,7 +4,7 @@ import { z } from 'zod';
 import dotenv from 'dotenv';
 import { dirname } from 'path';
 import { fileURLToPath } from 'url';
-import { createLocalLogger } from '../utils/logger';
+import { createLocalLogger } from '../../utils/logger';
 dotenv.config();
 
 // ====== 日志工具 ======
