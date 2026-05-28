@@ -75,12 +75,12 @@ export async function reactLoop(userQuery: string, maxSteps = 10) {
       const observation = await toolFn({query: action.param , expression: action.param });  // 直接调用纯函数
 
       log(`🔧 Tool: ${action.tool}[${action.param}]`);
-      log(`📊 Observation: ${observation}`);
+      log(`📊 Observation: ${observation.results}`);
 
       // ③ 截断：只把到 Action 为止的内容塞回 messages，不污染上下文
       const actionEndIndex = text.indexOf(']') + 1;
       messages.push({ role: 'assistant', content: text.substring(0, actionEndIndex) });
-      messages.push({ role: 'user', content: `Observation: ${observation}` });
+      messages.push({ role: 'user', content: `Observation: ${observation.results}` });
 
       continue; // 进入下一轮循环
     }
